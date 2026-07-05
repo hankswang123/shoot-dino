@@ -27,7 +27,7 @@ def test_crosshair_and_bullets_use_machine_gun_ray():
     assert_contains(html, 'function getGunRay()', 'machine gun ray helper')
     assert_contains(html, 'aimRaycaster.set(gunRay.origin, gunRay.direction)', 'raycast from gun muzzle direction')
     assert_contains(html, 'const aimPoint = getAimPointFromGunRay(gunRay)', 'crosshair projected from gun ray')
-    assert_contains(html, 'barrel.rotation.y = yawOffset;', 'barrel yaw matches gun direction')
+    assert_contains(html, 'barrelPivot.lookAt(aimPoint);', 'barrel pivot aims at crosshair direction')
 
 
 def test_dinosaurs_cannot_overlap_truck():
@@ -154,13 +154,38 @@ def test_anti_air_super_weapon_targets_pteranodons():
 
 
 def test_hud_stats_are_collapsible_by_click():
-    assert_contains(html, '<button id="hudToggle"', 'HUD toggle button')
-    assert_contains(html, '<div id="topbar" class="collapsed">', 'HUD stats start collapsed')
-    assert_contains(html, '#topbar.collapsed {', 'collapsed HUD CSS rule')
-    assert_contains(html, "const hudToggle = document.getElementById('hudToggle');", 'HUD toggle DOM lookup')
-    assert_contains(html, "topbar.classList.toggle('collapsed')", 'HUD click toggles collapsed stats')
-    assert_contains(html, "hudToggle.textContent = topbar.classList.contains('collapsed') ? '显示状态' : '隐藏状态';", 'HUD toggle label updates')
+    assert_contains(html, '<div id="topbar">', 'HUD stats are always visible')
+    assert_contains(html, '#topbar {', 'HUD topbar CSS rule')
+    assert_contains(html, 'opacity: .78;', 'HUD is translucent')
+    assert_contains(html, 'pointer-events: none;', 'HUD does not intercept game controls')
 
+
+
+def test_machine_gun_visuals_rotate_to_crosshair_direction():
+    assert_contains(html, 'function updateMachineGunAiming()', 'machine gun visual aiming helper')
+    assert_contains(html, 'barrelPivot.lookAt(aimPoint);', 'gun pivot rotates toward crosshair aim point')
+    assert_contains(html, 'muzzle.position.copy(barrelPivot.worldToLocal(aimPoint.clone()).normalize().multiplyScalar(3.25));', 'muzzle follows rotated barrel direction')
+    assert_contains(html, 'updateMachineGunAiming();', 'gun aiming updated every camera frame')
+
+
+def test_new_waves_change_roads_weather_and_scene_props():
+    assert_contains(html, 'const roadObjects = [];', 'road object registry')
+    assert_contains(html, 'const weatherObjects = [];', 'weather object registry')
+    assert_contains(html, 'function createBiomeRoad(biome)', 'biome road creator')
+    assert_contains(html, 'function createBiomeWeather(biome)', 'biome weather creator')
+    assert_contains(html, "weather: 'rain'", 'rain weather variant')
+    assert_contains(html, "weather: 'dust'", 'dust weather variant')
+    assert_contains(html, "road: 'straight'", 'straight road variant')
+    assert_contains(html, "road: 'river'", 'river or wet road variant')
+    assert_contains(html, 'createBiomeRoad(biome);', 'biome applies road changes')
+    assert_contains(html, 'createBiomeWeather(biome);', 'biome applies weather changes')
+
+
+def test_hud_stats_are_always_visible_translucent_overlay():
+    assert_contains(html, '<div id="topbar">', 'HUD stats are not initially collapsed')
+    assert_contains(html, 'background: rgba(8, 18, 16, .34);', 'HUD panels are more transparent')
+    assert_contains(html, 'opacity: .78;', 'HUD overlay opacity is reduced')
+    assert_contains(html, 'pointer-events: none;', 'HUD stats do not block sight or clicks')
 
 def test_player_can_summon_dinosaurs_when_out_of_view():
     assert_contains(html, 'function summonDinosaurs()', 'summon dinosaurs helper')
@@ -172,7 +197,7 @@ def test_player_can_summon_dinosaurs_when_out_of_view():
 
 
 if __name__ == '__main__':
-    tests = [test_target_lock_crosshair_and_shooting, test_obstacle_collision_registry_and_truck_blocking, test_crosshair_and_bullets_use_machine_gun_ray, test_dinosaurs_cannot_overlap_truck, test_w_moves_forward_and_s_reverses, test_last_dinosaur_location_hint, test_wave_counts_and_spawn_guard, test_multiple_dinosaur_species_models, test_pteranodon_is_light_and_easy_to_hit, test_last_two_dinosaurs_force_chase_player, test_each_wave_adds_one_machine_gun, test_machine_gun_can_aim_high_for_overhead_pteranodons, test_each_wave_applies_new_biome_scene, test_large_waves_do_not_all_rush_immediately, test_dinosaur_head_faces_movement_direction, test_new_wave_refills_health_and_scales_anti_air, test_anti_air_super_weapon_targets_pteranodons, test_hud_stats_are_collapsible_by_click, test_player_can_summon_dinosaurs_when_out_of_view]
+    tests = [test_target_lock_crosshair_and_shooting, test_obstacle_collision_registry_and_truck_blocking, test_crosshair_and_bullets_use_machine_gun_ray, test_dinosaurs_cannot_overlap_truck, test_w_moves_forward_and_s_reverses, test_last_dinosaur_location_hint, test_wave_counts_and_spawn_guard, test_multiple_dinosaur_species_models, test_pteranodon_is_light_and_easy_to_hit, test_last_two_dinosaurs_force_chase_player, test_each_wave_adds_one_machine_gun, test_machine_gun_can_aim_high_for_overhead_pteranodons, test_each_wave_applies_new_biome_scene, test_large_waves_do_not_all_rush_immediately, test_dinosaur_head_faces_movement_direction, test_new_wave_refills_health_and_scales_anti_air, test_anti_air_super_weapon_targets_pteranodons, test_hud_stats_are_collapsible_by_click, test_machine_gun_visuals_rotate_to_crosshair_direction, test_new_waves_change_roads_weather_and_scene_props, test_hud_stats_are_always_visible_translucent_overlay, test_player_can_summon_dinosaurs_when_out_of_view]
     for test in tests:
         test()
     print(f"{len(tests)} regression tests passed")

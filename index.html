@@ -28,34 +28,21 @@
       color: white;
       text-shadow: 0 2px 6px rgba(0,0,0,.65);
     }
-
-    #hudToggle {
-      position: absolute;
-      left: 22px;
-      top: 18px;
-      pointer-events: auto;
-      cursor: pointer;
-      color: white;
-      font-weight: 900;
-    }
-
     #topbar {
       position: absolute;
       left: 22px;
-      top: 72px;
+      top: 18px;
       display: flex;
       gap: 18px;
       align-items: center;
       font-weight: 800;
       letter-spacing: .03em;
-    }
-
-    #topbar.collapsed {
-      display: none;
+      opacity: .78;
+      pointer-events: none;
     }
 
     .panel {
-      background: rgba(8, 18, 16, .5);
+      background: rgba(8, 18, 16, .34);
       border: 1px solid rgba(255, 255, 255, .16);
       border-radius: 12px;
       padding: 10px 14px;
@@ -163,8 +150,7 @@
 <body>
   <canvas id="game"></canvas>
   <div id="hud">
-    <button id="hudToggle" class="panel">显示状态</button>
-    <div id="topbar" class="collapsed">
+    <div id="topbar">
       <div class="panel">
         生命值
         <div id="healthWrap"><div id="healthBar"></div></div>
@@ -194,7 +180,6 @@
 
     const canvas = document.getElementById('game');
     const crosshair = document.getElementById('crosshair');
-    const hudToggle = document.getElementById('hudToggle');
     const topbar = document.getElementById('topbar');
     const healthBar = document.getElementById('healthBar');
     const scoreEl = document.getElementById('score');
@@ -256,6 +241,8 @@
     const enemies = [];
     const obstacles = [];
     const biomeObjects = [];
+    const roadObjects = [];
+    const weatherObjects = [];
     const bullets = [];
     const effects = [];
     let aimTarget = null;
@@ -263,6 +250,8 @@
     const materials = {
       ground: new THREE.MeshStandardMaterial({ color: 0x56702a, roughness: 1 }),
       dirt: new THREE.MeshStandardMaterial({ color: 0x6b522b, roughness: 1 }),
+      water: new THREE.MeshStandardMaterial({ color: 0x355f78, roughness: 0.55, metalness: 0.05, transparent: true, opacity: 0.62 }),
+      weather: new THREE.MeshBasicMaterial({ color: 0xddeeff, transparent: true, opacity: 0.36 }),
       truckBody: new THREE.MeshStandardMaterial({ color: 0xd86b28, roughness: 0.58, metalness: 0.18 }),
       truckDark: new THREE.MeshStandardMaterial({ color: 0x20242a, roughness: 0.68, metalness: 0.2 }),
       glass: new THREE.MeshStandardMaterial({ color: 0x77c8e8, roughness: 0.2, metalness: 0.05, transparent: true, opacity: 0.62 }),
@@ -287,10 +276,10 @@
     }
 
     const biomes = [
-      { name: '草原', sky: 0x8ec8ff, fog: 0x8ec8ff, ground: 0x56702a, leaf: 0x245c2c, rock: 0x6f7168, prop: 'palm' },
-      { name: '沙漠', sky: 0xf0c987, fog: 0xf0c987, ground: 0xc79a4a, leaf: 0x8d9c3d, rock: 0x9b8061, prop: 'rock' },
-      { name: '森林', sky: 0x6fa4b8, fog: 0x6fa4b8, ground: 0x2f552a, leaf: 0x174d24, rock: 0x5f675e, prop: 'forest' },
-      { name: '湿地', sky: 0x7f9e94, fog: 0x7f9e94, ground: 0x3d5a38, leaf: 0x1d6938, rock: 0x556057, prop: 'mixed' }
+      { name: '草原', sky: 0x8ec8ff, fog: 0x8ec8ff, ground: 0x56702a, leaf: 0x245c2c, rock: 0x6f7168, prop: 'palm', road: 'ring', weather: 'clear' },
+      { name: '沙漠', sky: 0xf0c987, fog: 0xf0c987, ground: 0xc79a4a, leaf: 0x8d9c3d, rock: 0x9b8061, prop: 'rock', road: 'straight', weather: 'dust' },
+      { name: '森林', sky: 0x6fa4b8, fog: 0x6fa4b8, ground: 0x2f552a, leaf: 0x174d24, rock: 0x5f675e, prop: 'forest', road: 'fork', weather: 'rain' },
+      { name: '湿地', sky: 0x7f9e94, fog: 0x7f9e94, ground: 0x3d5a38, leaf: 0x1d6938, rock: 0x556057, prop: 'mixed', road: 'river', weather: 'mist' }
     ];
 
     function trackBiomeObject(obj) {
@@ -301,8 +290,62 @@
     function clearBiomeObjects() {
       for (const obj of biomeObjects) scene.remove(obj);
       biomeObjects.length = 0;
+      roadObjects.length = 0;
+      weatherObjects.length = 0;
       for (let i = obstacles.length - 1; i >= 0; i--) {
         if (obstacles[i].biome) obstacles.splice(i, 1);
+      }
+    }
+
+    function addBiomeObject(obj, collection) {
+      scene.add(trackBiomeObject(obj));
+      collection.push(obj);
+      return obj;
+    }
+
+    function createBiomeRoad(biome) {
+      if (biome.road === 'straight') {
+        const road = new THREE.Mesh(new THREE.PlaneGeometry(18, worldSize * 2, 1, 1), materials.dirt);
+        road.rotation.x = -Math.PI / 2;
+        road.rotation.z = 0.18;
+        road.position.y = 0.035;
+        road.receiveShadow = true;
+        addBiomeObject(road, roadObjects);
+      } else if (biome.road === 'fork') {
+        for (const rot of [0.62, -0.72]) {
+          const road = new THREE.Mesh(new THREE.PlaneGeometry(13, worldSize * 1.55, 1, 1), materials.dirt);
+          road.rotation.x = -Math.PI / 2;
+          road.rotation.z = rot;
+          road.position.y = 0.036;
+          road.receiveShadow = true;
+          addBiomeObject(road, roadObjects);
+        }
+      } else if (biome.road === 'river') {
+        const river = new THREE.Mesh(new THREE.PlaneGeometry(16, worldSize * 1.8, 1, 1), materials.water);
+        river.rotation.x = -Math.PI / 2;
+        river.rotation.z = -0.34;
+        river.position.y = 0.04;
+        addBiomeObject(river, roadObjects);
+      } else {
+        const track = new THREE.Mesh(new THREE.RingGeometry(28, 36, 96), materials.dirt);
+        track.rotation.x = -Math.PI / 2;
+        track.position.y = 0.034;
+        track.scale.set(1.55, 1.0, 1);
+        track.receiveShadow = true;
+        addBiomeObject(track, roadObjects);
+      }
+    }
+
+    function createBiomeWeather(biome) {
+      if (biome.weather === 'clear') return;
+      const count = biome.weather === 'rain' ? 90 : 42;
+      const color = biome.weather === 'dust' ? 0xe6c37a : 0xddeeff;
+      for (let i = 0; i < count; i++) {
+        const drop = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, biome.weather === 'rain' ? 4.2 : 1.1, 5), materials.weather.clone());
+        drop.material.color.setHex(color);
+        drop.position.set(rand(-90, 90), rand(13, 42), rand(-90, 90));
+        drop.rotation.z = biome.weather === 'rain' ? 0.18 : rand(0, Math.PI);
+        addBiomeObject(drop, weatherObjects);
       }
     }
 
@@ -314,6 +357,8 @@
       materials.ground.color.setHex(biome.ground);
       materials.leaf.color.setHex(biome.leaf);
       materials.rock.color.setHex(biome.rock);
+      createBiomeRoad(biome);
+      createBiomeWeather(biome);
       for (let i = 0; i < 22; i++) {
         const p = randomEdgePosition(48, worldSize - 18);
         if (biome.prop === 'rock' || Math.random() < 0.38) createBiomeRock(p.x, p.z, rand(1.0, 2.8), biome);
@@ -470,6 +515,7 @@
 
       truck.userData.barrels = [];
       truck.userData.muzzles = [];
+      truck.userData.barrelPivots = [];
       truck.userData.activeGunCount = 1;
 
       const turretBase = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 1.15, 0.35, 18), materials.metal);
@@ -493,21 +539,27 @@
     }
 
     function createMachineGun(x, primary) {
+      const barrelPivot = new THREE.Group();
+      barrelPivot.position.set(x, 2.25, 0.38);
+      barrelPivot.visible = primary;
+      truck.add(barrelPivot);
+      truck.userData.barrelPivots.push(barrelPivot);
+
       const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 3.2, 14), materials.metal);
       barrel.rotation.x = Math.PI / 2;
-      barrel.position.set(x, 2.25, 0.38);
+      barrel.position.set(0, 0, -1.6);
       barrel.castShadow = true;
       barrel.visible = primary;
-      truck.add(barrel);
+      barrelPivot.add(barrel);
       truck.userData.barrels.push(barrel);
 
       const muzzle = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.8, 16), materials.flash.clone());
       muzzle.rotation.x = -Math.PI / 2;
-      muzzle.position.set(x, 2.25, -1.35);
+      muzzle.position.set(0, 0, -3.25);
       muzzle.visible = false;
-      truck.add(muzzle);
+      barrelPivot.add(muzzle);
       truck.userData.muzzles.push(muzzle);
-      return { barrel, muzzle };
+      return { barrelPivot, barrel, muzzle };
     }
 
     function ensureMachineGunCount(count) {
@@ -520,9 +572,10 @@
       truck.userData.activeGunCount = count;
       truck.userData.barrels.forEach((barrel, index) => {
         const x = (index - (count - 1) / 2) * 0.34;
-        barrel.position.x = x;
+        const barrelPivot = truck.userData.barrelPivots[index];
+        barrelPivot.position.x = x;
+        barrelPivot.visible = index < count;
         barrel.visible = index < count;
-        truck.userData.muzzles[index].position.x = x;
       });
     }
 
@@ -745,19 +798,26 @@
       const lookTarget = truck.position.clone().add(new THREE.Vector3(0, 2.1 + pitch * 2, 0));
       camera.lookAt(lookTarget);
 
-      for (const barrel of truck.userData.barrels || []) {
-        if (!barrel.visible) continue;
-        barrel.rotation.set(Math.PI / 2 + THREE.MathUtils.clamp(pitch, -0.45, 1.42) - recoil, yawOffset, 0);
-        barrel.rotation.y = yawOffset;
-      }
+      updateMachineGunAiming();
       recoil = Math.max(0, recoil - dt * 5.5);
       updateAimTarget();
     }
 
+    function updateMachineGunAiming() {
+      const aimPoint = truck.position.clone().add(getGunDirection().multiplyScalar(120));
+      for (const barrelPivot of truck.userData.barrelPivots || []) {
+        if (!barrelPivot.visible) continue;
+        barrelPivot.lookAt(aimPoint);
+        barrelPivot.rotateX(-recoil);
+        const muzzle = truck.userData.muzzles[truck.userData.barrelPivots.indexOf(barrelPivot)];
+        if (muzzle) muzzle.position.copy(barrelPivot.worldToLocal(aimPoint.clone()).normalize().multiplyScalar(3.25));
+      }
+    }
+
     function getMuzzleWorldPosition(index = 0) {
       const muzzle = truck.userData.muzzles?.[index];
-      const x = muzzle ? muzzle.position.x : 0;
-      const pos = new THREE.Vector3(x, 2.25, -1.75);
+      if (muzzle) return muzzle.getWorldPosition(new THREE.Vector3());
+      const pos = new THREE.Vector3(0, 2.25, -1.75);
       return truck.localToWorld(pos);
     }
 
@@ -1201,10 +1261,6 @@
     animate();
 
     startBtn.addEventListener('click', resetGame);
-    hudToggle.addEventListener('click', () => {
-      topbar.classList.toggle('collapsed');
-      hudToggle.textContent = topbar.classList.contains('collapsed') ? '显示状态' : '隐藏状态';
-    });
     canvas.addEventListener('click', () => { if (running && !gameOver) canvas.requestPointerLock?.(); });
 
     window.addEventListener('keydown', (e) => {
