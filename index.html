@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>侏罗纪皮卡狩猎恐龙 - Three.js Prototype</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #090f12;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      user-select: none;
+    }
+
+    #game {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      color: white;
+      text-shadow: 0 2px 6px rgba(0,0,0,.65);
+    }
+
+    #hudToggle {
+      position: absolute;
+      left: 22px;
+      top: 18px;
+      pointer-events: auto;
+      cursor: pointer;
+      color: white;
+      font-weight: 900;
+    }
+
+    #topbar {
+      position: absolute;
+      left: 22px;
+      top: 72px;
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      font-weight: 800;
+      letter-spacing: .03em;
+    }
+
+    #topbar.collapsed {
+      display: none;
+    }
+
+    .panel {
+      background: rgba(8, 18, 16, .5);
+      border: 1px solid rgba(255, 255, 255, .16);
+      border-radius: 12px;
+      padding: 10px 14px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    }
+
+    #healthWrap {
+      width: 190px;
+      height: 16px;
+      background: rgba(255,255,255,.14);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.18);
+      margin-top: 5px;
+    }
+
+    #healthBar {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, #2df58d, #f5d742, #ff4d4d);
+      transform-origin: left center;
+      transition: transform .16s ease;
+    }
+
+    #crosshair {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 28px;
+      height: 28px;
+      transform: translate(-50%, -50%);
+      opacity: .92;
+    }
+    #crosshair::before, #crosshair::after {
+      content: "";
+      position: absolute;
+      background: rgba(255,255,255,.92);
+      box-shadow: 0 0 8px rgba(255, 95, 22, .85);
+      border-radius: 2px;
+    }
+    #crosshair::before { left: 13px; top: 2px; width: 2px; height: 24px; }
+    #crosshair::after { left: 2px; top: 13px; width: 24px; height: 2px; }
+
+    #centerMessage {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(620px, calc(100vw - 36px));
+      text-align: center;
+      padding: 26px 28px;
+      border-radius: 20px;
+      background: rgba(7, 13, 12, .72);
+      border: 1px solid rgba(255, 255, 255, .18);
+      box-shadow: 0 22px 80px rgba(0,0,0,.42);
+      backdrop-filter: blur(8px);
+      pointer-events: auto;
+    }
+    #centerMessage h1 { margin: 0 0 12px; font-size: clamp(28px, 5vw, 46px); }
+    #centerMessage p { margin: 8px 0; line-height: 1.55; color: rgba(255,255,255,.86); }
+    #centerMessage button {
+      margin-top: 18px;
+      padding: 12px 22px;
+      border: 0;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #ffcc33, #ff6933);
+      color: #201006;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 8px 22px rgba(255, 112, 32, .35);
+    }
+
+    #tips {
+      position: absolute;
+      left: 22px;
+      bottom: 18px;
+      max-width: 520px;
+      color: rgba(255,255,255,.72);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    #dinoHint {
+      position: absolute;
+      right: 22px;
+      top: 18px;
+      max-width: 340px;
+      display: none;
+      color: #ffe08a;
+      font-weight: 900;
+      line-height: 1.45;
+    }
+
+    #damageFlash {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle, rgba(255,0,0,0) 45%, rgba(255,0,0,.38) 100%);
+      opacity: 0;
+      transition: opacity .12s ease;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="hud">
+    <button id="hudToggle" class="panel">显示状态</button>
+    <div id="topbar" class="collapsed">
+      <div class="panel">
+        生命值
+        <div id="healthWrap"><div id="healthBar"></div></div>
+      </div>
+      <div class="panel">得分：<span id="score">0</span></div>
+      <div class="panel">波次：<span id="wave">1</span></div>
+      <div class="panel">剩余恐龙：<span id="left">0</span></div>
+      <div class="panel">防空武器：<span id="antiAir">3</span>/<span id="antiAirMax">3</span></div>
+    </div>
+    <div id="dinoHint" class="panel"></div>
+    <div id="crosshair"></div>
+    <div id="tips" class="panel">
+      操作：W 前进，S 倒车，A/D 转向，鼠标移动瞄准，左键机枪射击，Q 防空武器，E 召唤恐龙，R 重开。<br />
+      目标：驾驶皮卡在侏罗纪荒野中存活，击退一波波靠近的恐龙。
+    </div>
+    <div id="centerMessage">
+      <h1>侏罗纪皮卡狩猎恐龙</h1>
+      <p>第三人称驾驶 + 机枪射击 3D 原型。</p>
+      <p>点击开始后浏览器会锁定鼠标，用鼠标控制瞄准视角。</p>
+      <button id="startBtn">开始游戏</button>
+    </div>
+  </div>
+  <div id="damageFlash"></div>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+
+    const canvas = document.getElementById('game');
+    const crosshair = document.getElementById('crosshair');
+    const hudToggle = document.getElementById('hudToggle');
+    const topbar = document.getElementById('topbar');
+    const healthBar = document.getElementById('healthBar');
+    const scoreEl = document.getElementById('score');
+    const waveEl = document.getElementById('wave');
+    const leftEl = document.getElementById('left');
+    const antiAirEl = document.getElementById('antiAir');
+    const antiAirMaxEl = document.getElementById('antiAirMax');
+    const dinoHintEl = document.getElementById('dinoHint');
+    const centerMessage = document.getElementById('centerMessage');
+    const startBtn = document.getElementById('startBtn');
+    const damageFlash = document.getElementById('damageFlash');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x8ec8ff);
+    scene.fog = new THREE.Fog(0x8ec8ff, 90, 310);
+
+    const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 600);
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const hemi = new THREE.HemisphereLight(0xb9e6ff, 0x314018, 1.65);
+    scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xfff1bd, 2.3);
+    sun.position.set(-70, 110, 45);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -170;
+    sun.shadow.camera.right = 170;
+    sun.shadow.camera.top = 170;
+    sun.shadow.camera.bottom = -170;
+    scene.add(sun);
+
+    const clock = new THREE.Clock();
+    const raycaster = new THREE.Raycaster();
+    const aimRaycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2(0, 0);
+
+    const input = { w: false, a: false, s: false, d: false, firing: false };
+    const worldSize = 260;
+    let yawOffset = 0;
+    let pitch = 0.12;
+    let running = false;
+    let gameOver = false;
+    let score = 0;
+    let wave = 1;
+    let spawningNextWave = false;
+    let playerHealth = 100;
+    let antiAirCharges = 3;
+    let antiAirMaxCharges = 3;
+    let fireCooldown = 0;
+    let recoil = 0;
+    let shake = 0;
+    let audioCtx;
+
+    const enemies = [];
+    const obstacles = [];
+    const biomeObjects = [];
+    const bullets = [];
+    const effects = [];
+    let aimTarget = null;
+
+    const materials = {
+      ground: new THREE.MeshStandardMaterial({ color: 0x56702a, roughness: 1 }),
+      dirt: new THREE.MeshStandardMaterial({ color: 0x6b522b, roughness: 1 }),
+      truckBody: new THREE.MeshStandardMaterial({ color: 0xd86b28, roughness: 0.58, metalness: 0.18 }),
+      truckDark: new THREE.MeshStandardMaterial({ color: 0x20242a, roughness: 0.68, metalness: 0.2 }),
+      glass: new THREE.MeshStandardMaterial({ color: 0x77c8e8, roughness: 0.2, metalness: 0.05, transparent: true, opacity: 0.62 }),
+      tire: new THREE.MeshStandardMaterial({ color: 0x101010, roughness: 0.9 }),
+      metal: new THREE.MeshStandardMaterial({ color: 0x32363c, roughness: 0.35, metalness: 0.75 }),
+      dino: new THREE.MeshStandardMaterial({ color: 0x557238, roughness: 0.92 }),
+      dinoHit: new THREE.MeshStandardMaterial({ color: 0xff6b4a, roughness: 0.8 }),
+      dinoDead: new THREE.MeshStandardMaterial({ color: 0x3d3c32, roughness: 1 }),
+      leaf: new THREE.MeshStandardMaterial({ color: 0x245c2c, roughness: 1 }),
+      trunk: new THREE.MeshStandardMaterial({ color: 0x71502d, roughness: 1 }),
+      rock: new THREE.MeshStandardMaterial({ color: 0x6f7168, roughness: 1 }),
+      flash: new THREE.MeshBasicMaterial({ color: 0xffdd66, transparent: true, opacity: 0.92 }),
+      bullet: new THREE.MeshBasicMaterial({ color: 0xfff2a8 }),
+      blood: new THREE.MeshBasicMaterial({ color: 0xff3b24, transparent: true, opacity: 0.8 })
+    };
+
+    function makeRoundedBox(w, h, d, mat) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    const biomes = [
+      { name: '草原', sky: 0x8ec8ff, fog: 0x8ec8ff, ground: 0x56702a, leaf: 0x245c2c, rock: 0x6f7168, prop: 'palm' },
+      { name: '沙漠', sky: 0xf0c987, fog: 0xf0c987, ground: 0xc79a4a, leaf: 0x8d9c3d, rock: 0x9b8061, prop: 'rock' },
+      { name: '森林', sky: 0x6fa4b8, fog: 0x6fa4b8, ground: 0x2f552a, leaf: 0x174d24, rock: 0x5f675e, prop: 'forest' },
+      { name: '湿地', sky: 0x7f9e94, fog: 0x7f9e94, ground: 0x3d5a38, leaf: 0x1d6938, rock: 0x556057, prop: 'mixed' }
+    ];
+
+    function trackBiomeObject(obj) {
+      biomeObjects.push(obj);
+      return obj;
+    }
+
+    function clearBiomeObjects() {
+      for (const obj of biomeObjects) scene.remove(obj);
+      biomeObjects.length = 0;
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        if (obstacles[i].biome) obstacles.splice(i, 1);
+      }
+    }
+
+    function applyBiomeForWave(waveNumber) {
+      clearBiomeObjects();
+      const biome = biomes[(waveNumber - 1) % biomes.length];
+      scene.background = new THREE.Color(biome.sky);
+      scene.fog = new THREE.Fog(biome.fog, 90, 310);
+      materials.ground.color.setHex(biome.ground);
+      materials.leaf.color.setHex(biome.leaf);
+      materials.rock.color.setHex(biome.rock);
+      for (let i = 0; i < 22; i++) {
+        const p = randomEdgePosition(48, worldSize - 18);
+        if (biome.prop === 'rock' || Math.random() < 0.38) createBiomeRock(p.x, p.z, rand(1.0, 2.8), biome);
+        else createBiomePalm(p.x, p.z, rand(0.7, 1.35), biome);
+      }
+    }
+
+    function createBiomePalm(x, z, s, biome) {
+      const group = new THREE.Group();
+      group.position.set(x, 0, z);
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.28*s, 0.46*s, 6.5*s, 7), materials.trunk);
+      trunk.position.y = 3.25*s;
+      trunk.castShadow = true;
+      group.add(trunk);
+      for (let i = 0; i < (biome.prop === 'forest' ? 10 : 6); i++) {
+        const leaf = new THREE.Mesh(new THREE.ConeGeometry(1.0*s, 5.0*s, 4), materials.leaf);
+        leaf.position.y = 6.8*s;
+        leaf.rotation.z = Math.PI / 2 + rand(-0.25, 0.25);
+        leaf.rotation.y = i / 8 * Math.PI * 2;
+        leaf.position.x = Math.cos(leaf.rotation.y) * 1.4*s;
+        leaf.position.z = Math.sin(leaf.rotation.y) * 1.4*s;
+        leaf.castShadow = true;
+        group.add(leaf);
+      }
+      scene.add(trackBiomeObject(group));
+      obstacles.push({ x, z, radius: 1.05 * s, type: 'biome-tree', biome: true });
+    }
+
+    function createBiomeRock(x, z, s, biome) {
+      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), materials.rock);
+      rock.position.set(x, s * 0.38, z);
+      rock.scale.set(rand(1, 2.2), rand(0.35, 0.9), rand(0.8, 1.9));
+      rock.rotation.set(rand(0, 1), rand(0, Math.PI * 2), rand(0, 1));
+      rock.castShadow = true;
+      rock.receiveShadow = true;
+      scene.add(trackBiomeObject(rock));
+      obstacles.push({ x, z, radius: 1.2 * s * Math.max(rock.scale.x, rock.scale.z), type: 'biome-rock', biome: true });
+    }
+
+    function createTerrain() {
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(worldSize * 2, worldSize * 2, 96, 96), materials.ground);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      const track = new THREE.Mesh(new THREE.RingGeometry(34, 41, 96), materials.dirt);
+      track.rotation.x = -Math.PI / 2;
+      track.position.y = 0.025;
+      track.scale.set(1.55, 1.0, 1);
+      track.receiveShadow = true;
+      scene.add(track);
+
+      const hillMat = new THREE.MeshStandardMaterial({ color: 0x486628, roughness: 1 });
+      for (let i = 0; i < 18; i++) {
+        const hillRadius = rand(10, 24);
+        const hillHeight = rand(5, 14);
+        const hill = new THREE.Mesh(new THREE.ConeGeometry(hillRadius, hillHeight, 8), hillMat);
+        const p = randomEdgePosition(150, 245);
+        hill.position.set(p.x, hillHeight / 2 - 0.3, p.z);
+        hill.scale.z = rand(1.0, 2.4);
+        hill.rotation.y = rand(0, Math.PI * 2);
+        hill.receiveShadow = true;
+        scene.add(hill);
+        registerObstacle(p.x, p.z, hillRadius * 0.82, 'hill');
+      }
+
+      for (let i = 0; i < 95; i++) {
+        const p = randomEdgePosition(35, worldSize - 15);
+        if (Math.random() < 0.62) createPalm(p.x, p.z, rand(0.75, 1.45));
+        else createRock(p.x, p.z, rand(0.8, 2.4));
+      }
+    }
+
+    function createPalm(x, z, s) {
+      const group = new THREE.Group();
+      group.position.set(x, 0, z);
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35*s, 0.55*s, 8*s, 7), materials.trunk);
+      trunk.position.y = 4*s;
+      trunk.rotation.z = rand(-0.14, 0.14);
+      trunk.castShadow = true;
+      trunk.receiveShadow = true;
+      group.add(trunk);
+      for (let i = 0; i < 7; i++) {
+        const leaf = new THREE.Mesh(new THREE.ConeGeometry(1.1*s, 6.3*s, 4), materials.leaf);
+        leaf.position.y = 8.5*s;
+        leaf.rotation.z = Math.PI / 2 + rand(-0.22, 0.22);
+        leaf.rotation.y = i / 7 * Math.PI * 2;
+        leaf.position.x = Math.cos(leaf.rotation.y) * 1.6*s;
+        leaf.position.z = Math.sin(leaf.rotation.y) * 1.6*s;
+        leaf.castShadow = true;
+        group.add(leaf);
+      }
+      scene.add(group);
+      registerObstacle(x, z, 1.2 * s, 'tree');
+    }
+
+    function createRock(x, z, s) {
+      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), materials.rock);
+      rock.position.set(x, s * 0.45, z);
+      rock.scale.set(rand(1, 1.9), rand(0.45, 1.1), rand(0.8, 1.6));
+      rock.rotation.set(rand(0, 1), rand(0, 6.28), rand(0, 1));
+      rock.castShadow = true;
+      rock.receiveShadow = true;
+      scene.add(rock);
+      registerObstacle(x, z, 1.35 * s * Math.max(rock.scale.x, rock.scale.z), 'rock');
+    }
+
+    function registerObstacle(x, z, radius, type) {
+      obstacles.push({ x, z, radius, type, biome: false });
+    }
+
+    function resolveTruckObstacleCollision(previousPosition) {
+      const truckRadius = 3.15;
+      for (const obstacle of obstacles) {
+        const dx = truck.position.x - obstacle.x;
+        const dz = truck.position.z - obstacle.z;
+        const minDistance = truckRadius + obstacle.radius;
+        if ((dx * dx + dz * dz) < minDistance * minDistance) {
+          truck.position.copy(previousPosition);
+          truck.userData.speed *= -0.18;
+          shake = Math.min(0.45, shake + 0.12);
+          return true;
+        }
+      }
+      return false;
+    }
+
+    const truck = new THREE.Group();
+    truck.position.set(0, 0, 0);
+    truck.userData = { speed: 0, heading: 0 };
+    scene.add(truck);
+
+    function createTruck() {
+      const base = makeRoundedBox(4.6, 0.8, 7.2, materials.truckBody);
+      base.position.y = 1.05;
+      truck.add(base);
+
+      const hood = makeRoundedBox(4.2, 0.65, 2.1, materials.truckBody);
+      hood.position.set(0, 1.45, -2.4);
+      truck.add(hood);
+
+      const cabin = makeRoundedBox(3.8, 1.75, 2.2, materials.truckBody);
+      cabin.position.set(0, 2.15, -0.65);
+      truck.add(cabin);
+
+      const windshield = makeRoundedBox(3.35, 0.9, 0.08, materials.glass);
+      windshield.position.set(0, 2.35, -1.78);
+      windshield.rotation.x = -0.18;
+      truck.add(windshield);
+
+      const bed = makeRoundedBox(4.25, 0.62, 2.55, materials.truckDark);
+      bed.position.set(0, 1.5, 2.4);
+      truck.add(bed);
+
+      truck.userData.barrels = [];
+      truck.userData.muzzles = [];
+      truck.userData.activeGunCount = 1;
+
+      const turretBase = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 1.15, 0.35, 18), materials.metal);
+      turretBase.position.set(0, 2.03, 2.05);
+      turretBase.castShadow = true;
+      truck.add(turretBase);
+
+      ensureMachineGunCount(1);
+      truck.userData.barrel = truck.userData.barrels[0];
+      truck.userData.muzzle = truck.userData.muzzles[0];
+
+      for (const x of [-2.25, 2.25]) {
+        for (const z of [-2.55, 2.45]) {
+          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.55, 24), materials.tire);
+          wheel.rotation.z = Math.PI / 2;
+          wheel.position.set(x, 0.62, z);
+          wheel.castShadow = true;
+          truck.add(wheel);
+        }
+      }
+    }
+
+    function createMachineGun(x, primary) {
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 3.2, 14), materials.metal);
+      barrel.rotation.x = Math.PI / 2;
+      barrel.position.set(x, 2.25, 0.38);
+      barrel.castShadow = true;
+      barrel.visible = primary;
+      truck.add(barrel);
+      truck.userData.barrels.push(barrel);
+
+      const muzzle = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.8, 16), materials.flash.clone());
+      muzzle.rotation.x = -Math.PI / 2;
+      muzzle.position.set(x, 2.25, -1.35);
+      muzzle.visible = false;
+      truck.add(muzzle);
+      truck.userData.muzzles.push(muzzle);
+      return { barrel, muzzle };
+    }
+
+    function ensureMachineGunCount(count) {
+      while (truck.userData.barrels.length < count) createMachineGun(0, false);
+    }
+
+    function setMachineGunCountForWave(waveNumber) {
+      const count = Math.max(1, waveNumber);
+      ensureMachineGunCount(count);
+      truck.userData.activeGunCount = count;
+      truck.userData.barrels.forEach((barrel, index) => {
+        const x = (index - (count - 1) / 2) * 0.34;
+        barrel.position.x = x;
+        barrel.visible = index < count;
+        truck.userData.muzzles[index].position.x = x;
+      });
+    }
+
+    const dinoSpecies = ['trex', 'triceratops', 'pteranodon'];
+
+    function addBodyPart(group, mesh, mat) {
+      mesh.material = mat;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+      return mesh;
+    }
+
+    function addTrexFeatures(group, mat) {
+      const jaw = addBodyPart(group, new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.28, 0.62), mat), mat);
+      jaw.position.set(2.18, 2.33, 0);
+      const brow = addBodyPart(group, new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.18, 0.72), mat), mat);
+      brow.position.set(1.72, 2.83, 0);
+      for (const z of [-0.55, 0.55]) {
+        const arm = addBodyPart(group, new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.85, 8), mat), mat);
+        arm.position.set(0.85, 1.55, z);
+        arm.rotation.z = 0.72;
+      }
+    }
+
+    function addTriceratopsFeatures(group, mat) {
+      const frill = addBodyPart(group, new THREE.Mesh(new THREE.ConeGeometry(0.95, 0.35, 18), mat), mat);
+      frill.position.set(1.28, 2.55, 0);
+      frill.rotation.z = Math.PI / 2;
+      const noseHorn = addBodyPart(group, new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.75, 10), mat), mat);
+      noseHorn.position.set(2.26, 2.54, 0);
+      noseHorn.rotation.z = -Math.PI / 2;
+      for (const z of [-0.36, 0.36]) {
+        const horn = addBodyPart(group, new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.95, 10), mat), mat);
+        horn.position.set(1.74, 2.9, z);
+        horn.rotation.z = -Math.PI / 2.25;
+      }
+    }
+
+    function addPteranodonHitVolume(group, mat) {
+      const hitMat = mat.clone();
+      hitMat.transparent = true;
+      hitMat.opacity = 0;
+      hitMat.colorWrite = false;
+      hitMat.depthWrite = false;
+      const hitVolume = new THREE.Mesh(new THREE.BoxGeometry(3.8, 1.7, 7.2), hitMat);
+      hitVolume.material.colorWrite = false;
+      hitVolume.position.set(0.15, 2.05, 0);
+      hitVolume.userData.isHitVolume = true;
+      group.add(hitVolume);
+      return hitVolume;
+    }
+
+    function makePteranodonSilhouette(group, mat) {
+      const body = group.children[0];
+      body.scale.set(0.55, 1.18, 0.42);
+      const head = group.children[2];
+      head.scale.set(0.62, 0.55, 0.55);
+      const tail = group.children[3];
+      tail.scale.set(0.38, 1.25, 0.38);
+      for (const leg of group.children.slice(4, 8)) leg.scale.set(0.25, 0.55, 0.25);
+      const beak = addBodyPart(group, new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.65, 12), mat), mat);
+      beak.position.set(2.42, 2.52, 0);
+      beak.rotation.z = -Math.PI / 2;
+      beak.scale.set(1.9, 0.35, 0.35);
+    }
+
+    function addPteranodonFeatures(group, mat) {
+      makePteranodonSilhouette(group, mat);
+      const crest = addBodyPart(group, new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.05, 8), mat), mat);
+      crest.position.set(1.42, 2.86, 0);
+      crest.rotation.z = Math.PI / 2;
+      for (const z of [-1, 1]) {
+        const wing = addBodyPart(group, new THREE.Mesh(new THREE.ConeGeometry(0.2, 4.9, 4), mat), mat);
+        wing.position.set(-0.08, 1.92, z * 1.72);
+        wing.rotation.x = z * Math.PI / 2;
+        wing.rotation.z = 1.42;
+        wing.scale.set(1.9, 1.15, 0.22);
+      }
+      addPteranodonHitVolume(group, mat);
+    }
+
+    function createDino() {
+      const species = dinoSpecies[Math.floor(Math.random() * dinoSpecies.length)];
+      const colors = { trex: 0x5f7f36, triceratops: 0x7b7040, pteranodon: 0x536f7c };
+      const mat = new THREE.MeshStandardMaterial({ color: colors[species], roughness: 0.92 });
+      const group = new THREE.Group();
+      const body = addBodyPart(group, new THREE.Mesh(new THREE.CapsuleGeometry(0.9, 2.35, 6, 12), mat), mat);
+      body.rotation.z = Math.PI / 2;
+      body.position.y = 1.6;
+
+      const neck = addBodyPart(group, new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.36, 1.15, 8), mat), mat);
+      neck.position.set(1.1, 2.15, 0);
+      neck.rotation.z = -0.62;
+
+      const head = addBodyPart(group, new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.55, 0.55), mat), mat);
+      head.position.set(1.72, 2.55, 0);
+
+      const tail = addBodyPart(group, new THREE.Mesh(new THREE.ConeGeometry(0.36, 2.25, 10), mat), mat);
+      tail.rotation.z = Math.PI / 2;
+      tail.position.set(-1.95, 1.72, 0);
+
+      for (const x of [-0.7, 0.65]) {
+        for (const z of [-0.42, 0.42]) {
+          const leg = addBodyPart(group, new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 1.38, 8), mat), mat);
+          leg.position.set(x, 0.7, z);
+        }
+      }
+
+      if (species === 'trex') addTrexFeatures(group, mat);
+      if (species === 'triceratops') addTriceratopsFeatures(group, mat);
+      if (species === 'pteranodon') addPteranodonFeatures(group, mat);
+
+      let scale = rand(1.1, 1.75);
+      if (species === 'trex') scale *= 1.18;
+      if (species === 'triceratops') scale *= 1.08;
+      if (species === 'pteranodon') scale *= 0.82;
+      group.scale.set(scale, scale, scale);
+      const hpMultiplier = species === 'trex' ? 1.35 : species === 'triceratops' ? 1.55 : 0.75;
+      const speedMultiplier = species === 'pteranodon' ? 1.55 : species === 'triceratops' ? 0.78 : 1.0;
+      group.userData = {
+        type: species,
+        hp: Math.round((45 * scale + wave * 8) * hpMultiplier),
+        maxHp: Math.round((45 * scale + wave * 8) * hpMultiplier),
+        speed: (rand(3.1, 5.1) / scale + wave * 0.06) * speedMultiplier,
+        engageDelay: 0,
+        chaseRange: rand(58, 88),
+        stateTimer: rand(0, 3),
+        wanderAngle: rand(0, Math.PI * 2),
+        attackCooldown: 0,
+        hitFlash: 0,
+        dead: false,
+        deathTimer: 0,
+        flyHeight: species === 'pteranodon' ? rand(4.8, 7.2) : 0,
+        baseMaterial: mat,
+        bodyParts: group.children.filter(p => !p.userData.isHitVolume)
+      };
+      return group;
+    }
+
+    function faceDinoAlongDirection(dino, dir) {
+      dino.rotation.y = Math.atan2(dir.x, dir.z) - Math.PI / 2;
+    }
+
+    function getWaveDinoCount() {
+      return 6 + (wave - 1) * 10;
+    }
+
+    function calculateAntiAirChargesForWave(pteranodonCount) {
+      return Math.max(3, 3 + Math.ceil(pteranodonCount / 3));
+    }
+
+    function spawnWave() {
+      spawningNextWave = false;
+      playerHealth = 100;
+      applyBiomeForWave(wave);
+      setMachineGunCountForWave(wave);
+      const count = getWaveDinoCount();
+      let pteranodonCount = 0;
+      for (let i = 0; i < count; i++) {
+        const dino = createDino();
+        if (dino.userData.type === 'pteranodon') pteranodonCount++;
+        const angle = (i / count) * Math.PI * 2 + rand(-0.4, 0.4);
+        const radius = rand(55, 95) + wave * 4;
+        dino.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+        faceDinoAlongDirection(dino, new THREE.Vector3(-Math.cos(angle), 0, -Math.sin(angle)));
+        dino.userData.engageDelay = wave >= 3 ? rand(2.5, 9.5) + i * 0.12 : rand(0.2, 2.8);
+        scene.add(dino);
+        enemies.push(dino);
+      }
+      antiAirMaxCharges = calculateAntiAirChargesForWave(pteranodonCount);
+      antiAirCharges = antiAirMaxCharges;
+      updateHud();
+    }
+
+    function updateTruck(dt) {
+      const accel = 22;
+      const reverseAccel = 14;
+      const friction = 5.2;
+      const maxForward = 27;
+      const maxReverse = -12;
+
+      if (input.w) truck.userData.speed -= accel * dt;
+      if (input.s) truck.userData.speed += reverseAccel * dt;
+      if (!input.w && !input.s) {
+        const drag = Math.sign(truck.userData.speed) * friction * dt;
+        if (Math.abs(drag) > Math.abs(truck.userData.speed)) truck.userData.speed = 0;
+        else truck.userData.speed -= drag;
+      }
+      truck.userData.speed = THREE.MathUtils.clamp(truck.userData.speed, -maxForward, -maxReverse);
+
+      const speedFactor = THREE.MathUtils.clamp(Math.abs(truck.userData.speed) / maxForward, 0.15, 1);
+      const turn = (input.a ? 1 : 0) + (input.d ? -1 : 0);
+      truck.userData.heading += turn * speedFactor * 1.55 * dt * Math.sign(truck.userData.speed || 1);
+      truck.rotation.y = truck.userData.heading;
+
+      const previousPosition = truck.position.clone();
+      const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), truck.userData.heading);
+      truck.position.addScaledVector(forward, truck.userData.speed * dt);
+      truck.position.x = THREE.MathUtils.clamp(truck.position.x, -worldSize + 8, worldSize - 8);
+      truck.position.z = THREE.MathUtils.clamp(truck.position.z, -worldSize + 8, worldSize - 8);
+      resolveTruckObstacleCollision(previousPosition);
+
+      const tilt = -turn * speedFactor * 0.07;
+      truck.rotation.z = THREE.MathUtils.lerp(truck.rotation.z, tilt, 0.08);
+    }
+
+    function updateCamera(dt) {
+      const heading = truck.userData.heading + yawOffset;
+      const camDistance = 13;
+      const camHeight = 7.0 + Math.sin(pitch) * 7;
+      const offset = new THREE.Vector3(Math.sin(heading) * camDistance, camHeight, Math.cos(heading) * camDistance);
+      const desired = truck.position.clone().add(offset);
+      if (shake > 0) {
+        desired.x += rand(-shake, shake);
+        desired.y += rand(-shake, shake);
+        shake = Math.max(0, shake - dt * 6);
+      }
+      camera.position.lerp(desired, 1 - Math.pow(0.001, dt));
+      const lookTarget = truck.position.clone().add(new THREE.Vector3(0, 2.1 + pitch * 2, 0));
+      camera.lookAt(lookTarget);
+
+      for (const barrel of truck.userData.barrels || []) {
+        if (!barrel.visible) continue;
+        barrel.rotation.set(Math.PI / 2 + THREE.MathUtils.clamp(pitch, -0.45, 1.42) - recoil, yawOffset, 0);
+        barrel.rotation.y = yawOffset;
+      }
+      recoil = Math.max(0, recoil - dt * 5.5);
+      updateAimTarget();
+    }
+
+    function getMuzzleWorldPosition(index = 0) {
+      const muzzle = truck.userData.muzzles?.[index];
+      const x = muzzle ? muzzle.position.x : 0;
+      const pos = new THREE.Vector3(x, 2.25, -1.75);
+      return truck.localToWorld(pos);
+    }
+
+    function getGunDirection() {
+      const horizontalAngle = truck.userData.heading + yawOffset;
+      const vertical = THREE.MathUtils.clamp(pitch, -0.45, 1.42);
+      return new THREE.Vector3(
+        -Math.sin(horizontalAngle) * Math.cos(vertical),
+        Math.sin(vertical),
+        -Math.cos(horizontalAngle) * Math.cos(vertical)
+      ).normalize();
+    }
+
+    function getGunRay() {
+      return { origin: getMuzzleWorldPosition(), direction: getGunDirection() };
+    }
+
+    function getGunRays() {
+      return (truck.userData.muzzles || [])
+        .map((muzzle, index) => ({ muzzle, index }))
+        .filter(({ index }) => index < truck.userData.activeGunCount)
+        .map(({ index }) => ({ index, origin: getMuzzleWorldPosition(index), direction: getGunDirection() }));
+    }
+
+    function getAimPointFromGunRay(gunRay) {
+      return gunRay.origin.clone().add(gunRay.direction.clone().multiplyScalar(140));
+    }
+
+    function setCrosshairAtWorldPoint(point, locked) {
+      const projected = point.clone().project(camera);
+      const x = THREE.MathUtils.clamp((projected.x * 0.5 + 0.5) * window.innerWidth, 18, window.innerWidth - 18);
+      const y = THREE.MathUtils.clamp((-projected.y * 0.5 + 0.5) * window.innerHeight, 18, window.innerHeight - 18);
+      crosshair.style.left = `${x}px`;
+      crosshair.style.top = `${y}px`;
+      crosshair.style.transform = `translate(-50%, -50%) scale(${locked ? 1.25 : 1})`;
+    }
+
+    function findAimAssistTarget(gunRay, livingEnemies) {
+      let best = null;
+      for (const dino of livingEnemies) {
+        const targetPoint = dino.position.clone().add(new THREE.Vector3(0, 2.0 * dino.scale.y, 0));
+        const toTarget = targetPoint.clone().sub(gunRay.origin);
+        const forwardDistance = toTarget.dot(gunRay.direction);
+        if (forwardDistance < 0 || forwardDistance > 150) continue;
+        const closestPoint = gunRay.origin.clone().add(gunRay.direction.clone().multiplyScalar(forwardDistance));
+        const missDistance = closestPoint.distanceTo(targetPoint);
+        const lockRadius = 3.0 + dino.scale.x * 1.8;
+        if (missDistance <= lockRadius && (!best || missDistance < best.missDistance || forwardDistance < best.distance)) {
+          best = { dino, point: targetPoint, distance: forwardDistance, missDistance };
+        }
+      }
+      return best;
+    }
+
+    function updateAimTarget() {
+      aimTarget = null;
+      const gunRay = getGunRay();
+      const livingEnemies = enemies.filter(e => !e.userData.dead);
+      const hitObjects = livingEnemies.flatMap(e => e.children);
+      aimRaycaster.set(gunRay.origin, gunRay.direction);
+      const directHits = aimRaycaster.intersectObjects(hitObjects, false);
+
+      if (directHits.length) {
+        const hit = directHits[0];
+        const dino = findEnemyRoot(hit.object);
+        if (dino) aimTarget = { dino, point: hit.point.clone(), distance: hit.distance };
+      } else {
+        aimTarget = findAimAssistTarget(gunRay, livingEnemies);
+      }
+
+      const aimPoint = getAimPointFromGunRay(gunRay);
+      if (aimTarget) aimPoint.copy(aimTarget.point);
+      setCrosshairAtWorldPoint(aimPoint, !!aimTarget);
+    }
+
+    function shoot() {
+      if (!running || gameOver || fireCooldown > 0) return;
+      fireCooldown = 0.075;
+      recoil = 0.16;
+      shake = Math.min(0.32, shake + 0.09);
+      playGunSound();
+
+      const gunRays = getGunRays();
+      for (const gunRay of gunRays) {
+        const muzzle = truck.userData.muzzles[gunRay.index];
+        if (muzzle) {
+          muzzle.visible = true;
+          muzzle.material.opacity = 0.95;
+          effects.push({ type: 'muzzle', mesh: muzzle, life: 0.045, maxLife: 0.045 });
+        }
+
+        updateAimTarget();
+        aimRaycaster.set(gunRay.origin, gunRay.direction);
+        const muzzlePos = gunRay.origin;
+        let endPoint = getAimPointFromGunRay(gunRay);
+
+        if (aimTarget && !aimTarget.dino.userData.dead) {
+          endPoint.copy(aimTarget.point);
+          damageDino(aimTarget.dino, 14 + Math.round(Math.random() * 8), aimTarget.point);
+        } else {
+          const hitObjects = enemies.filter(e => !e.userData.dead).flatMap(e => e.children);
+          const hits = aimRaycaster.intersectObjects(hitObjects, false);
+          if (hits.length) {
+            const hit = hits[0];
+            endPoint.copy(hit.point);
+            const dino = findEnemyRoot(hit.object);
+            if (dino && !dino.userData.dead) damageDino(dino, 14 + Math.round(Math.random() * 8), hit.point);
+          }
+        }
+        createBulletTracer(muzzlePos, endPoint);
+      }
+    }
+
+    function findEnemyRoot(obj) {
+      let cur = obj;
+      while (cur && !enemies.includes(cur)) cur = cur.parent;
+      return cur;
+    }
+
+    function summonDinosaurs() {
+      if (!running || gameOver) return;
+      for (const dino of enemies) {
+        if (dino.userData.dead || dino.parent !== scene) continue;
+        dino.userData.engageDelay = 0;
+        dino.userData.chaseRange = worldSize * 2;
+        dino.userData.summoned = true;
+      }
+      updateDinoHint();
+    }
+
+    function useAntiAirWeapon() {
+      if (!running || gameOver || antiAirCharges <= 0) return;
+      const pteranodons = enemies.filter(e => !e.userData.dead && e.parent === scene && e.userData.type === 'pteranodon');
+      if (!pteranodons.length) return;
+      pteranodons.sort((a, b) => truck.position.distanceTo(a.position) - truck.position.distanceTo(b.position));
+      const target = pteranodons[0];
+      antiAirCharges--;
+      const start = getMuzzleWorldPosition(0);
+      const end = target.position.clone().add(new THREE.Vector3(0, target.userData.flyHeight ? 2.2 : 1.5, 0));
+      createBulletTracer(start, end);
+      createHitSpark(end);
+      damageDino(target, target.userData.maxHp, target.position.clone().add(new THREE.Vector3(0, 2, 0)));
+      updateHud();
+    }
+
+    function damageDino(dino, dmg, point) {
+      dino.userData.hp -= dmg;
+      dino.userData.hitFlash = 0.12;
+      dino.userData.bodyParts.forEach(p => p.material = materials.dinoHit);
+      createHitSpark(point);
+      if (dino.userData.hp <= 0) {
+        dino.userData.dead = true;
+        dino.userData.deathTimer = 1.2;
+        dino.userData.bodyParts.forEach(p => p.material = materials.dinoDead);
+        score += 100;
+        updateHud();
+      }
+    }
+
+    function createBulletTracer(start, end) {
+      const mid = start.clone().lerp(end, 0.5);
+      const dist = start.distanceTo(end);
+      const tracer = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, dist, 6), materials.bullet);
+      tracer.position.copy(mid);
+      tracer.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), end.clone().sub(start).normalize());
+      scene.add(tracer);
+      effects.push({ type: 'tracer', mesh: tracer, life: 0.045, maxLife: 0.045 });
+    }
+
+    function createHitSpark(point) {
+      for (let i = 0; i < 5; i++) {
+        const spark = new THREE.Mesh(new THREE.SphereGeometry(rand(0.05, 0.13), 8, 8), materials.blood.clone());
+        spark.position.copy(point);
+        spark.userData.vel = new THREE.Vector3(rand(-1, 1), rand(0.8, 2.3), rand(-1, 1));
+        scene.add(spark);
+        effects.push({ type: 'spark', mesh: spark, life: 0.35, maxLife: 0.35 });
+      }
+    }
+
+    function separateDinoFromTruck(dino) {
+      const truckCollisionRadius = 3.8;
+      const dinoCollisionRadius = 1.25 * dino.scale.x;
+      const minDistance = truckCollisionRadius + dinoCollisionRadius;
+      const away = new THREE.Vector3(dino.position.x - truck.position.x, 0, dino.position.z - truck.position.z);
+      let distance = away.length();
+      if (distance === 0) {
+        away.set(1, 0, 0);
+        distance = 1;
+      } else {
+        away.divideScalar(distance);
+      }
+      if (distance < minDistance) {
+        dino.position.x = truck.position.x + away.x * minDistance;
+        dino.position.z = truck.position.z + away.z * minDistance;
+        return true;
+      }
+      return distance < minDistance + 1.2;
+    }
+
+    function updateEnemies(dt) {
+      let alive = 0;
+      const livingCount = enemies.filter(e => !e.userData.dead && e.parent === scene).length;
+      const forceChasePlayer = livingCount <= 2;
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const dino = enemies[i];
+        const data = dino.userData;
+
+        if (data.dead) {
+          data.deathTimer -= dt;
+          dino.rotation.z = THREE.MathUtils.lerp(dino.rotation.z, -Math.PI / 2, 0.075);
+          dino.position.y = THREE.MathUtils.lerp(dino.position.y, -0.15, 0.035);
+          if (data.deathTimer <= 0) {
+            scene.remove(dino);
+            enemies.splice(i, 1);
+          }
+          continue;
+        }
+
+        alive++;
+        data.attackCooldown = Math.max(0, data.attackCooldown - dt);
+        data.engageDelay = Math.max(0, data.engageDelay - dt);
+        data.stateTimer -= dt;
+        if (data.stateTimer <= 0) {
+          data.wanderAngle += rand(-1.1, 1.1);
+          data.stateTimer = rand(1.2, 3.4);
+        }
+
+        const toPlayer = truck.position.clone().sub(dino.position);
+        const dist = toPlayer.length();
+        let dir;
+        if (forceChasePlayer || (data.engageDelay <= 0 && dist < data.chaseRange)) dir = toPlayer.normalize();
+        else dir = new THREE.Vector3(Math.cos(data.wanderAngle), 0, Math.sin(data.wanderAngle));
+
+        const speed = data.speed * (dist < 28 ? 1.06 : 0.88);
+        dino.position.addScaledVector(dir, speed * dt);
+        dino.position.x = THREE.MathUtils.clamp(dino.position.x, -worldSize + 5, worldSize - 5);
+        dino.position.z = THREE.MathUtils.clamp(dino.position.z, -worldSize + 5, worldSize - 5);
+        const canAttackTruck = separateDinoFromTruck(dino);
+        faceDinoAlongDirection(dino, dir);
+        dino.position.y = data.flyHeight + Math.abs(Math.sin(clock.elapsedTime * 5.5 + dino.id)) * (data.flyHeight ? 0.45 : 0.06);
+
+        if (data.hitFlash > 0) {
+          data.hitFlash -= dt;
+          if (data.hitFlash <= 0) data.bodyParts.forEach(p => p.material = data.baseMaterial);
+        }
+
+        if (canAttackTruck && data.attackCooldown <= 0) {
+          data.attackCooldown = 1.15;
+          damagePlayer(8 + wave * 2);
+        }
+      }
+
+      if (alive === 0 && running && !gameOver && !spawningNextWave) {
+        spawningNextWave = true;
+        wave++;
+        setTimeout(() => { if (running && !gameOver) spawnWave(); }, 700);
+      }
+      leftEl.textContent = alive;
+      updateDinoHint();
+    }
+
+    function damagePlayer(amount) {
+      playerHealth = Math.max(0, playerHealth - amount);
+      shake = Math.min(0.8, shake + 0.34);
+      damageFlash.style.opacity = '1';
+      setTimeout(() => damageFlash.style.opacity = '0', 90);
+      playHitSound();
+      updateHud();
+      if (playerHealth <= 0) endGame();
+    }
+
+    function updateEffects(dt) {
+      for (let i = effects.length - 1; i >= 0; i--) {
+        const e = effects[i];
+        e.life -= dt;
+        if (e.type === 'spark') {
+          e.mesh.position.addScaledVector(e.mesh.userData.vel, dt);
+          e.mesh.userData.vel.y -= 5 * dt;
+          e.mesh.material.opacity = Math.max(0, e.life / e.maxLife);
+        } else if (e.type === 'tracer') {
+          e.mesh.material.opacity = Math.max(0, e.life / e.maxLife);
+        } else if (e.type === 'muzzle') {
+          e.mesh.scale.setScalar(rand(0.8, 1.25));
+          e.mesh.material.opacity = Math.max(0, e.life / e.maxLife);
+        }
+        if (e.life <= 0) {
+          if (e.type === 'muzzle') e.mesh.visible = false;
+          else scene.remove(e.mesh);
+          effects.splice(i, 1);
+        }
+      }
+    }
+
+    function formatDinoDirection(dino) {
+      const dx = dino.position.x - truck.position.x;
+      const dz = dino.position.z - truck.position.z;
+      const distance = Math.round(Math.sqrt(dx * dx + dz * dz));
+      const angle = Math.atan2(dx, dz) - truck.userData.heading;
+      const normalized = Math.atan2(Math.sin(angle), Math.cos(angle));
+      const labels = ['前方', '右前方', '右侧', '右后方', '后方', '左后方', '左侧', '左前方'];
+      const index = Math.round((normalized + Math.PI) / (Math.PI / 4)) % 8;
+      return `${labels[index]} ${distance}m`;
+    }
+
+    function updateDinoHint() {
+      const living = enemies.filter(e => !e.userData.dead && e.parent === scene);
+      if (living.length > 0 && living.length <= 2) {
+        dinoHintEl.style.display = 'block';
+        const lines = living
+          .sort((a, b) => truck.position.distanceTo(a.position) - truck.position.distanceTo(b.position))
+          .map((dino, index) => `恐龙 ${index + 1}：${formatDinoDirection(dino)}`);
+        dinoHintEl.innerHTML = `最后 ${living.length} 只恐龙位置<br>${lines.join('<br>')}`;
+      } else {
+        dinoHintEl.style.display = 'none';
+        dinoHintEl.textContent = '';
+      }
+    }
+
+    function updateHud() {
+      healthBar.style.transform = `scaleX(${playerHealth / 100})`;
+      scoreEl.textContent = score;
+      waveEl.textContent = wave;
+      leftEl.textContent = enemies.filter(e => !e.userData.dead && e.parent === scene).length;
+      antiAirEl.textContent = antiAirCharges;
+      antiAirMaxEl.textContent = antiAirMaxCharges;
+      updateDinoHint();
+    }
+
+    function endGame() {
+      gameOver = true;
+      running = false;
+      document.exitPointerLock?.();
+      centerMessage.style.display = 'block';
+      centerMessage.innerHTML = `
+        <h1>游戏结束</h1>
+        <p>最终得分：<b>${score}</b>　到达波次：<b>${wave}</b></p>
+        <p>恐龙突破了你的防线。按 R 或点击按钮重新开始。</p>
+        <button id="restartBtn">重新开始</button>
+      `;
+      document.getElementById('restartBtn').addEventListener('click', resetGame);
+    }
+
+    function resetGame() {
+      for (const e of enemies) scene.remove(e);
+      enemies.length = 0;
+      for (const e of effects) if (e.type !== 'muzzle') scene.remove(e.mesh);
+      effects.length = 0;
+      truck.position.set(0, 0, 0);
+      truck.rotation.set(0, 0, 0);
+      truck.userData.speed = 0;
+      truck.userData.heading = 0;
+      yawOffset = 0;
+      pitch = 0.12;
+      score = 0;
+      wave = 1;
+      playerHealth = 100;
+      antiAirCharges = 3;
+      antiAirMaxCharges = 3;
+      gameOver = false;
+      spawningNextWave = false;
+      setMachineGunCountForWave(1);
+      running = true;
+      centerMessage.style.display = 'none';
+      canvas.requestPointerLock?.();
+      spawnWave();
+      updateHud();
+    }
+
+    function playGunSound() {
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const noise = ctx.createBufferSource();
+      const buffer = ctx.createBuffer(1, ctx.sampleRate * 0.04, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+      noise.buffer = buffer;
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(90, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(45, ctx.currentTime + 0.055);
+      gain.gain.setValueAtTime(0.10, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+      osc.connect(gain);
+      noise.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(); noise.start();
+      osc.stop(ctx.currentTime + 0.065); noise.stop(ctx.currentTime + 0.045);
+    }
+
+    function playHitSound() {
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(130, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(70, ctx.currentTime + 0.16);
+      gain.gain.setValueAtTime(0.06, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.17);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 0.18);
+    }
+
+    function ensureAudio() {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function rand(min, max) { return min + Math.random() * (max - min); }
+
+    function randomEdgePosition(minR, maxR) {
+      const a = Math.random() * Math.PI * 2;
+      const r = rand(minR, maxR);
+      return { x: Math.cos(a) * r, z: Math.sin(a) * r };
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.033);
+      if (running && !gameOver) {
+        fireCooldown = Math.max(0, fireCooldown - dt);
+        if (input.firing) shoot();
+        updateTruck(dt);
+        updateEnemies(dt);
+      }
+      updateCamera(dt);
+      updateEffects(dt);
+      renderer.render(scene, camera);
+    }
+
+    createTerrain();
+    createTruck();
+    updateHud();
+    updateCamera(1 / 60);
+    animate();
+
+    startBtn.addEventListener('click', resetGame);
+    hudToggle.addEventListener('click', () => {
+      topbar.classList.toggle('collapsed');
+      hudToggle.textContent = topbar.classList.contains('collapsed') ? '显示状态' : '隐藏状态';
+    });
+    canvas.addEventListener('click', () => { if (running && !gameOver) canvas.requestPointerLock?.(); });
+
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'w') input.w = true;
+      if (k === 'a') input.a = true;
+      if (k === 's') input.s = true;
+      if (k === 'd') input.d = true;
+      if (k === 'r') resetGame();
+      if (k === 'q') useAntiAirWeapon();
+      if (k === 'e') summonDinosaurs();
+    });
+    window.addEventListener('keyup', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'w') input.w = false;
+      if (k === 'a') input.a = false;
+      if (k === 's') input.s = false;
+      if (k === 'd') input.d = false;
+    });
+    window.addEventListener('mousedown', (e) => { if (e.button === 0) input.firing = true; });
+    window.addEventListener('mouseup', (e) => { if (e.button === 0) input.firing = false; });
+    window.addEventListener('mousemove', (e) => {
+      if (document.pointerLockElement === canvas) {
+        yawOffset -= e.movementX * 0.0022;
+        pitch = THREE.MathUtils.clamp(pitch - e.movementY * 0.0018, -0.45, 1.55);
+      } else if (running && !gameOver) {
+        const nx = (e.clientX / window.innerWidth) * 2 - 1;
+        const ny = (e.clientY / window.innerHeight) * 2 - 1;
+        yawOffset = THREE.MathUtils.clamp(-nx * 0.95, -1.15, 1.15);
+        pitch = THREE.MathUtils.clamp(-ny * 1.15, -0.45, 1.55);
+      }
+    });
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
+

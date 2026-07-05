@@ -1,0 +1,8 @@
+from pathlib import Path
+path = Path('tests/game_regression_tests.py')
+text = path.read_text(encoding='utf-8')
+insert = '''\n\ndef test_new_wave_refills_health_and_resets_anti_air():\n    assert_contains(html, 'let antiAirCharges = 3;', 'anti-air charge state')\n    assert_contains(html, 'playerHealth = 100;', 'wave start refills player health')\n    assert_contains(html, 'antiAirCharges = 3;', 'wave start resets anti-air charges')\n    assert_contains(html, 'antiAirEl.textContent = antiAirCharges;', 'HUD updates anti-air charge count')\n\n\ndef test_anti_air_super_weapon_targets_pteranodons():\n    assert_contains(html, '<div class="panel">防空武器：<span id="antiAir">3</span>/3</div>', 'anti-air HUD display')\n    assert_contains(html, "const antiAirEl = document.getElementById('antiAir');", 'anti-air DOM lookup')\n    assert_contains(html, 'function useAntiAirWeapon()', 'anti-air weapon function')\n    assert_contains(html, "e.userData.type === 'pteranodon'", 'anti-air targets only pteranodons')\n    assert_contains(html, 'antiAirCharges--;', 'anti-air charges consumed')\n    assert_contains(html, 'damageDino(target, target.userData.maxHp, target.position.clone()', 'anti-air destroys selected pteranodon')\n    assert_contains(html, "if (k === 'q') useAntiAirWeapon();", 'Q key fires anti-air weapon')\n'''
+if 'test_new_wave_refills_health_and_resets_anti_air' not in text:
+    text = text.replace("\n\nif __name__ == '__main__':", insert + "\n\nif __name__ == '__main__':")
+    text = text.replace('test_dinosaur_head_faces_movement_direction]', 'test_dinosaur_head_faces_movement_direction, test_new_wave_refills_health_and_resets_anti_air, test_anti_air_super_weapon_targets_pteranodons]')
+path.write_text(text, encoding='utf-8')
