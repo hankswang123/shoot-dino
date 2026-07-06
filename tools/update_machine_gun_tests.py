@@ -1,5 +1,5 @@
 from pathlib import Path
-path = Path('src/tests/game_regression_tests.py')
+path = Path('tools/tests/game_regression_tests.py')
 text = path.read_text(encoding='utf-8')
 old = '''def test_second_wave_enables_dual_machine_guns():
     assert_contains(html, 'truck.userData.barrels = [];', 'barrel array initialized')

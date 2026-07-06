@@ -1,5 +1,5 @@
 from pathlib import Path
-path = Path('src/tests/game_regression_tests.py')
+path = Path('tools/tests/game_regression_tests.py')
 text = path.read_text(encoding='utf-8')
 # Update last-two chase test for new pacing condition (no unconditional wave>=3 rush).
 text = text.replace("assert_contains(html, 'if (forceChasePlayer || dist < 70 || wave >= 3)', 'last two always chase player')", "assert_contains(html, 'if (forceChasePlayer || (data.engageDelay <= 0 && dist < data.chaseRange))', 'last two always chase while others wait for engage delay')")

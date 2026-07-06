@@ -1,5 +1,5 @@
 from pathlib import Path
-path = Path('src/tests/game_regression_tests.py')
+path = Path('tools/tests/game_regression_tests.py')
 text = path.read_text(encoding='utf-8')
 insert = '''\n\ndef test_dinosaur_head_faces_movement_direction():\n    assert_contains(html, 'function faceDinoAlongDirection(dino, dir)', 'dinosaur facing helper')\n    assert_contains(html, 'dino.rotation.y = Math.atan2(dir.x, dir.z) - Math.PI / 2;', 'head plus x points along movement direction')\n    assert_contains(html, 'faceDinoAlongDirection(dino, dir);', 'AI uses facing helper while moving')\n    assert_contains(html, 'faceDinoAlongDirection(dino, new THREE.Vector3(-Math.cos(angle), 0, -Math.sin(angle)));', 'spawned dinosaurs initially face map center')\n'''
 if 'test_dinosaur_head_faces_movement_direction' not in text:
