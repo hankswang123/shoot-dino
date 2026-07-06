@@ -34,7 +34,7 @@ Because the game imports Three.js from a CDN, an internet connection may be requ
 Run regression tests:
 
 ```powershell
-python tests\game_regression_tests.py
+python src\tests\game_regression_tests.py
 ```
 
 Check JavaScript syntax extracted from `index.html`:
@@ -50,7 +50,7 @@ Remove-Item tmp_check.mjs
 ```text
 .
 ├── index.html                    # Game source and UI
-├── tests/game_regression_tests.py # Source-level gameplay regression checks
+├── src/tests/game_regression_tests.py # Source-level gameplay regression checks
 ├── AGENTS.md                     # Agent/developer guidance
 └── README.md                     # Project documentation
 ```

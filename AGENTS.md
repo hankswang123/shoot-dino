@@ -3,12 +3,12 @@
 ## Project Overview
 - This repository contains a browser-playable Three.js 3D prototype game: a pickup truck hunting dinosaurs in a Jurassic-style arena.
 - The game is implemented as a mostly self-contained `index.html` file.
-- Regression checks live in `tests/game_regression_tests.py` and use source-level assertions for important gameplay behavior.
+- Regression checks live in `src/tests/game_regression_tests.py` and use source-level assertions for important gameplay behavior.
 
 ## Development Commands
 - Run regression tests:
   ```powershell
-  python tests\game_regression_tests.py
+  python src\tests\game_regression_tests.py
   ```
 - Check JavaScript syntax inside `index.html`:
   ```powershell
@@ -21,7 +21,7 @@
 ## Coding Guidelines
 - Keep the game simple and self-contained unless a change explicitly requires splitting files.
 - Preserve existing gameplay behavior unless the task asks to change it.
-- When changing gameplay, add or update regression tests in `tests/game_regression_tests.py` first, then update `index.html`.
+- When changing gameplay, add or update regression tests in `src/tests/game_regression_tests.py` first, then update `index.html`.
 - Prefer small, surgical changes over broad refactors.
 - Do not add copyrighted assets or protected game IP. Use procedural geometry, open-license assets, or clearly documented placeholders.
 
